@@ -4,85 +4,120 @@ from flask import Response
 
 import time
 import pigpio
+import copy
 
 pi = pigpio.pi()
 
 app = Flask(__name__)
-red_value=0
-green_value=0
-blue_value=0
+
+pins={"r":17,"g":22,"b":24}
+state={"r":0,"g":0,"b":0}
+
 power_value=True
+
+
+def set_colors(colors={},merge=True):
+   global state
+
+   for key, value in colors.iteritems():
+      #if value:
+      state[key]=int(value)
+  # else:
+  #    state=colors
+
+def light(colors={}, merge=True):
+   values = copy.copy(state)
+
+#   if merge:
+   for key, value in colors.iteritems():
+      print value
+      if value or (int(value) ==0):
+         print value
+         values[key]=int(value)
+ #  else:
+ #     for key,value in state.iteritems():
+ #        if value or (int(value) ==0):
+ #           print value
+ #           colors[key]=value
+ #        else:
+ #           colors[key]=0
+
+   for key, value in values.iteritems():
+      print values[key]
+      pi.set_PWM_dutycycle(pins[key], int(values[key]))
 
 @app.route("/power")
 def power():
+   global power
 
-   global red_value
-   global green_value
-   global blue_value
-   
    if request.args.get('power'):
       power = request.args.get('power') == "True"
    if(power):
-      pi.set_PWM_dutycycle(17, red_value)
-      pi.set_PWM_dutycycle(22, green_value)
-      pi.set_PWM_dutycycle(24, blue_value)
+      light()
    else:
       if request.args.get('r'):
-         red_value=0
-         green_value=0
-         blue_value=0
-      pi.set_PWM_dutycycle(17, 0)
-      pi.set_PWM_dutycycle(22, 0)
-      pi.set_PWM_dutycycle(24, 0)
-     
+         set_colors({"r":0,"g":0,"b":0})     
+      light({"r":0,"g":0,"b":0})     
+
 
    return Response(str(power),mimetype='text/plain')
 
 
 @app.route("/red")
 def red():
-   global red_value
-   if request.args.get('level'):
-      red_value = int(request.args.get('level'))   
-   pi.set_PWM_dutycycle(17, red_value)
 
-   return Response(str(red_value),mimetype='text/plain')
+   if request.args.get('level'):
+      set_colors({"r":int(request.args.get('level'))})
+   light()
+
+   return Response(str(state["r"]),mimetype='text/plain')
 
 @app.route("/blue")
 def blue():
-   global blue_value
-   if request.args.get('level'):
-      blue_value = int(request.args.get('level'))
-   pi.set_PWM_dutycycle(24, blue_value)
 
-   return Response(str(blue_value),mimetype='text/plain')
+   if request.args.get('level'):
+      set_colors({"b":int(request.args.get('level'))})
+   light()
+
+   return Response(str(state["b"]),mimetype='text/plain')
 
 @app.route("/green")
 def green():
-   global green_value
-   if request.args.get('level'):
-      green_value = int(request.args.get('level'))
-   pi.set_PWM_dutycycle(22, green_value)
 
-   return Response(str
-(green_value),mimetype='text/plain')
+   if request.args.get('level'):
+      set_colors({"g":int(request.args.get('level'))})
+   light()
+
+   return Response(str(state["g"]),mimetype='text/plain')
+
+@app.route("/light")
+def light_up():
+ 
+   if request.args.get("merge") and (request.args.get("merge")=="False"):
+      merge=False
+   else:
+      merge=True   
+
+
+   light({"r":request.args.get("r"),"g":request.args.get("g"),"b":request.args.get("b")},merge)
+
+   if request.args.get("save"):
+      set_colors({"r":request.args.get("r"),"g":request.args.get("g"),"b":request.args.get("b")},merge)
+
+   return Response(request.args,mimetype='application/json')
 
 @app.route("/warning")
 def warning():
-   pi.set_PWM_dutycycle(17, 0)
-   pi.set_PWM_dutycycle(22, 0)
-   pi.set_PWM_dutycycle(24, 0)
+   light({"r":0,"g":0,"b":0},False)   
 
    x=0
    for x in range(0,6):
-      pi.set_PWM_dutycycle(17, 255)
+      light({"r":255},False)
       time.sleep(0.1)
-      pi.set_PWM_dutycycle(17, 0)
+      light({"r":0,"g":0,"b":0},False)
       time.sleep(0.1)
-
-   pi.set_PWM_dutycycle(17, red_value)
-   pi.set_PWM_dutycycle(22, green_value)
-   pi.set_PWM_dutycycle(24, blue_value)
+   if power:
+      light()
 
    return Response("ok",mimetype='text/plain')   
 
