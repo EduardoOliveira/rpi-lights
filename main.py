@@ -1,146 +1,125 @@
-from flask import Flask
-from flask import request
-from flask import Response
+from flask import Flask, render_template, request, Response
 
-import time, thread, signal, sys
 import pigpio
-import copy
+import time
 
-pi = pigpio.pi()
+from thread import start_new_thread
 
 app = Flask(__name__)
 
-pins = {"r": 17, "g": 22, "b": 24}
-state = {"r": 0, "g": 0, "b": 0}
+CurrentColour = "White"
 
-power_value = True
+RedColourCode = 0
+BlueColourCode = 0
+GreenColourCode = 0
+RedBeforeEffect = 0
+BlueBeforeEffect = 0
+GreenBeforeEffect = 0
+RedPin = 17
+BluePin = 22
+GreenPin = 24
 
-t = None
+pi = pigpio.pi()
 
-def set_colors(colors={}, merge=True):
-    global state
+@app.route('/', methods=['GET'])
+def Main():
+	global CurrentColour
+	if request.args.get('Colour'):
+		CurrentColour=request.args.get('Colour')
+		ApplyColor()
+		return Response("ok",mimetype='text/plain')
 
-    for key, value in colors.iteritems():
-        # if value:
-        state[key] = int(value)
-        # else:
-        #    state=colors
+	if request.args.get('Warning'):
+		start_new_thread(FireWarning,())
+		return Response("ok",mimetype='text/plain')
 
+	return render_template('index.html')
+ 
 
-def light(colors={}, merge=True):
-    values = copy.copy(state)
+def ApplyColor():
+	print CurrentColour
+	if CurrentColour == "White":
+		FadeTORGB(255,255,255)
 
-    #   if merge:
-    for key, value in colors.iteritems():
-        print value
-        if value or (int(value) == 0):
-            print value
-            values[key] = int(value)
-            #  else:
-            #     for key,value in state.iteritems():
-            #        if value or (int(value) ==0):
-            #           print value
-            #           colors[key]=value
-            #        else:
-            #           colors[key]=0
+	elif CurrentColour == "Red":
+		FadeTORGB(255,0,0)
 
-    for key, value in values.iteritems():
-        print values[key]
-        pi.set_PWM_dutycycle(pins[key], int(values[key]))
+	elif CurrentColour == "Green":
+		FadeTORGB(0,255,0)
 
+	elif CurrentColour == "DarkBlue":
+		FadeTORGB(0,0,255)
 
-@app.route("/power")
-def power():
-    global power
+	elif CurrentColour == "LightBlue":
+		FadeTORGB(0,255,255)
 
-    if request.args.get('power'):
-        power = request.args.get('power') == "True"
-    if (power):
-        light()
-    else:
-        if request.args.get('r'):
-            set_colors({"r": 0, "g": 0, "b": 0})
-        light({"r": 0, "g": 0, "b": 0})
+	elif CurrentColour == "Orange":
+		FadeTORGB(255,15,0)
 
-    return Response(str(power), mimetype='text/plain')
+	elif CurrentColour == "Pink":
+		FadeTORGB(255,0,192)
 
+	elif CurrentColour == "Yellow":
+		FadeTORGB(255,157,0)
 
-@app.route("/red")
-def red():
-    if request.args.get('level'):
-        set_colors({"r": int(request.args.get('level'))})
-    light()
+	elif CurrentColour == "Purple":
+		FadeTORGB(123,0,255)
 
-    return Response(str(state["r"]), mimetype='text/plain')
+	elif CurrentColour == "Black":
+		FadeTORGB(0,0,0)
+	
 
+def FireWarning():
+	FadeTORGB(0,0,0)
+	for x in range(0,6):
+		FadeTORGB(255,0,0)
+		time.sleep(0.1)
+		FadeTORGB(0,0,0)
+		time.sleep(0.1)
+	ApplyColor()		
+	
+        
+        	
+def FadeTORGB(RedNum,BlueNum,GreenNum):
+    start_new_thread(FadeUpRed,(RedNum,))
+    start_new_thread(FadeUpBlue,(BlueNum,))
+    start_new_thread(FadeUpGreen,(GreenNum,))
 
-@app.route("/blue")
-def blue():
-    if request.args.get('level'):
-        set_colors({"b": int(request.args.get('level'))})
-    light()
-
-    return Response(str(state["b"]), mimetype='text/plain')
-
-
-@app.route("/green")
-def green():
-    if request.args.get('level'):
-        set_colors({"g": int(request.args.get('level'))})
-    light()
-
-    return Response(str(state["g"]), mimetype='text/plain')
-
-
-@app.route("/light")
-def light_up():
-    if request.args.get("merge") and (request.args.get("merge") == "False"):
-        merge = False
-    else:
-        merge = True
-
-    light({"r": request.args.get("r"), "g": request.args.get("g"), "b": request.args.get("b")}, merge)
-
-    if request.args.get("save"):
-        set_colors({"r": request.args.get("r"), "g": request.args.get("g"), "b": request.args.get("b")}, merge)
-
-    return Response(request.args, mimetype='application/json')
+def FadeUpRed(REDUpNum):
+    global RedColourCode
+    if RedColourCode < REDUpNum:
+        while RedColourCode < REDUpNum:
+            RedColourCode +=1
+            pi.set_PWM_dutycycle(RedPin, RedColourCode)
+    elif RedColourCode > REDUpNum:
+        while RedColourCode > REDUpNum:
+            RedColourCode -=1
+            pi.set_PWM_dutycycle(RedPin, RedColourCode)
 
 
-@app.route("/warning")
-def warning():
-    light({"r": 0, "g": 0, "b": 0}, False)
+def FadeUpBlue(BlueUpNum):
+    global BlueColourCode
+    if BlueColourCode < BlueUpNum:
+        while BlueColourCode < BlueUpNum:
+            BlueColourCode +=1
+            pi.set_PWM_dutycycle(BluePin, BlueColourCode)
+    elif BlueColourCode > BlueUpNum:
+        while BlueColourCode > BlueUpNum:
+            BlueColourCode -=1
+            pi.set_PWM_dutycycle(BluePin, BlueColourCode)
 
-    global t
-    t = thread.start_new(blinkingLights, None)
-    t.start()
-
-    return Response("ok", mimetype='text/plain')
-
-
-def blinkingLights():
-    for x in range(0, 6):
-        light({"r": 255}, False)
-        time.sleep(0.1)
-        light({"r": 0, "g": 0, "b": 0}, False)
-        time.sleep(0.1)
-    if power:
-        light()
-
-
-def signal_handler(signal, frame):
-    print('You pressed Ctrl+C!')
-    if t is not None:
-        t.join()
-        t.stop()
-    sys.exit(0)
-
-
+def FadeUpGreen(GreenUpNum):
+    global GreenColourCode
+    if GreenColourCode < GreenUpNum:
+        while GreenColourCode < GreenUpNum:
+            GreenColourCode +=1
+            pi.set_PWM_dutycycle(GreenPin, GreenColourCode)
+    elif GreenColourCode > GreenUpNum:
+        while GreenColourCode > GreenUpNum:
+            GreenColourCode -=1
+            pi.set_PWM_dutycycle(GreenPin, GreenColourCode)
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0')
-    pi.stop()
+    app.run(host="0.0.0.0",debug=True)
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.pause()
